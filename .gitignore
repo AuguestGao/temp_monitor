@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# Flask/coverage/logs
+.coverage*
+coverage.xml
+htmlcov/
+*.log
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Node/Frontend (for planned React app)
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.eslintcache
+
+# Storage CSVs (keep placeholder)
+storage/*.csv
+!storage/.gitkeep
+
+# Build artifacts
+dist/
+build/
+
+
