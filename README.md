@@ -184,16 +184,9 @@ temp_monitor/
 ### Quick Start (placeholder)
 Backend
 ```bash
-python -m venv .venv && . .venv/bin/activate
-pip install -r backend/requirements.txt
-FLASK_APP=backend/app.py flask run
-```
-
-Frontend
-```bash
-cd frontend
-npm install
-npm run dev
+uv sync
+cd backend
+uv run main.py
 ```
 
 
