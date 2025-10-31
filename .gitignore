@@ -36,4 +36,5 @@ storage/*.csv
 dist/
 build/
 
-
+# project specific
+backend/storage/*
