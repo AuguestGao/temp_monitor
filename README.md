@@ -1,14 +1,14 @@
 ### Temperature Monitoring System — Project Document
 
 #### Overview
-A system to capture room temperature readings via an Arduino temperature sensor, transmit them to a Python/Flask server over UART (USB serial), persist the data to CSV files, and visualize it in a React + TypeScript web app with date range and room filters.
+A system to capture temperature readings via an Arduino temperature sensor, transmit them to a Python/Flask server over UART (USB serial), persist the data to CSV files, and visualize it in a React + TypeScript web app with date range filters.
 
 #### Goals
 - Collect temperature in Celsius from Arduino-connected sensors.
 - Send readings to backend over USB serial (UART).
-- Persist readings reliably in CSV with timestamps and room identification.
+- Persist readings reliably in CSV with timestamps.
 - Provide APIs to ingest and retrieve readings.
-- Visualize and filter readings by date range and room in a web UI.
+- Visualize and filter readings by date range in a web UI.
 
 ---
 
@@ -27,16 +27,13 @@ Sensor → Arduino → (UART over USB) → Serial Ingest → CSV Storage → Fla
 
 ### Data Model
 - **TemperatureReading**
-  - `id`: string/UUID
-  - `room`: string (e.g., "101", "Lab-A")
-  - `valueC`: number (Celsius)
-  - `recordedAt`: ISO 8601 timestamp (device time or server-ingest time)
-  - `source`: string (e.g., "arduino-01")
+  - `recordedAt`: ISO 8601 timestamp (device time or server-ingest time; used as identifier)
+  - `tempC`: number (Celsius)
 
 CSV storage (header + sample row):
 ```
-id,room,valueC,recordedAt,source
-6d0c...,101,23.6,2025-10-30T10:15:00Z,arduino-01
+recordedAt,tempC
+2025-10-30T10:15:00Z,23.6
 ```
 Rotation policy: one CSV file per day per environment, e.g., `storage/2025-10-30_readings.csv`.
 
@@ -44,9 +41,9 @@ Rotation policy: one CSV file per day per environment, e.g., `storage/2025-10-30
 
 ### Communication from Arduino
 Mode: **USB Serial (UART)**
-- Arduino prints newline-delimited rows. Recommended format is CSV to match storage. Fields: `room,valueC,recordedAt,source`.
-- Example CSV line: `101,23.6,2025-10-30T10:15:00Z,arduino-01`
-- A Python serial-ingest process (`serial_ingest.py`) reads UART and writes to the daily CSV, assigning a UUID per record.
+- Arduino prints newline-delimited rows. Recommended format is CSV to match storage. Fields: `recordedAt,tempC`.
+- Example CSV line: `2025-10-30T10:15:00Z,23.6`
+- A Python serial-ingest process (`serial_ingest.py`) reads UART and writes to the daily CSV, using `recordedAt` as the identifier.
 
 Serial framing recommendation (robust): one record per line; optional checksum field if needed.
 
@@ -61,14 +58,12 @@ Base URL: `/api`
 - Body (JSON) — optional for non-UART clients (Arduino uses UART ingestion):
 ```json
 {
-  "room": "101",
-  "valueC": 23.6,
   "recordedAt": "2025-10-30T10:15:00Z",
-  "source": "arduino-01"
+  "tempC": 23.6
 }
 ```
 - Responses:
-  - 201 Created `{ "id": "<uuid>", "status": "stored" }`
+  - 201 Created `{ "recordedAt": "2025-10-30T10:15:00Z", "status": "stored" }`
   - 400 on validation errors; 415 on non-JSON; 500 on server error
 
 2) Retrieve readings (filtered)
@@ -76,19 +71,15 @@ Base URL: `/api`
 - Query params:
   - `from` ISO 8601 (inclusive)
   - `to` ISO 8601 (exclusive or inclusive; choose inclusive for simplicity)
-  - `room` string (optional; repeatable or comma-separated)
   - `limit` integer (optional, default 1000, max 10000)
-- Example: `/api/readings?from=2025-10-30T00:00:00Z&to=2025-10-31T00:00:00Z&room=101`
+- Example: `/api/readings?from=2025-10-30T00:00:00Z&to=2025-10-31T00:00:00Z`
 - Response (200):
 ```json
 {
   "items": [
     {
-      "id": "6d0c...",
-      "room": "101",
-      "valueC": 23.6,
       "recordedAt": "2025-10-30T10:15:00Z",
-      "source": "arduino-01"
+      "tempC": 23.6
     }
   ],
   "count": 1
@@ -96,9 +87,8 @@ Base URL: `/api`
 ```
 
 Validation rules:
-- `room`: non-empty string
-- `valueC`: finite number between -55 and 125 (depends on sensor)
 - `recordedAt`: valid ISO 8601; if omitted, server sets now (UTC)
+- `tempC`: finite number between -55 and 125 (depends on sensor)
 
 Security considerations:
 - For LAN deployments, consider an API key header (e.g., `X-API-Key`) or mutual TLS.
@@ -108,12 +98,12 @@ Security considerations:
 
 ### Frontend (React + TypeScript)
 Features:
-- Date range selector (start/end) and room selector (single or multi-select)
+- Date range selector (start/end)
 - Table and chart (line chart) of temperature over time
 - Auto-refresh toggle (e.g., 10s interval)
 
 Core UI elements:
-- Controls: `DateRangePicker`, `RoomSelect`, `RefreshButton`
+- Controls: `DateRangePicker`, `RefreshButton`
 - Views: `TemperatureChart`, `ReadingsTable`
 
 API integration:
@@ -123,11 +113,8 @@ API integration:
 Type definitions:
 ```ts
 export type TemperatureReading = {
-  id: string;
-  room: string;
-  valueC: number;
-  recordedAt: string; // ISO
-  source?: string;
+  recordedAt: string; // DateTime UTC (used as identifier)
+  tempC: number;
 };
 ```
 
@@ -136,8 +123,7 @@ export type TemperatureReading = {
 ### Directory Structure (proposed)
 ```
 temp_monitor/
-  arduino/
-    firmware/                 # Arduino sketches
+  firmware/                   # Arduino sketches
   backend/
     app.py                    # Flask entry
     schemas.py                # Pydantic/validation
