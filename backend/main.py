@@ -14,7 +14,7 @@ from config import get_config
 Config = get_config()
 
 # Initialize Flask app
-app = Flask(__name__)
+app: Flask = Flask(__name__)
 
 # Load configuration
 app.config.from_object(Config)

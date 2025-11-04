@@ -6,7 +6,7 @@ All settings can be overridden via environment variables.
 """
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Type
 
 
 class Config:
@@ -70,12 +70,12 @@ def get_default_serial_ports() -> List[str]:
         return []
 
 
-def get_config():
+def get_config() -> Type[Config]:
     """
     Get configuration class.
     
     Returns:
-        Config class instance
+        Config class type
     """
     return Config
 

@@ -1,7 +1,9 @@
 """Temperature reading routes."""
-from flask import Blueprint, jsonify, request, abort
+from typing import Tuple, Any, Optional
+from flask import Blueprint, jsonify, request, abort, Response
 from config import get_config
 from models.reading import Reading
+from utils.validators import validate_temperature, validate_limit, validate_offset
 
 # Get configuration
 Config = get_config()
@@ -11,22 +13,29 @@ readings_bp = Blueprint('readings', __name__)
 
 
 @readings_bp.route('/api/reading', methods=['POST'])
-def create_reading():
-    """Create a new reading."""
+def create_reading() -> Tuple[Response, int]:
+    """
+    Create a new reading.
+    
+    Returns:
+        JSON response with status code
+    """
     # Validate JSON content type
     if not request.is_json:
         abort(400)
     
-    valueC = request.json.get('valueC')
-    recordedAt = request.json.get('recordedAt')
+    data: dict[str, Any] = request.json or {}
+    valueC: Any = data.get('valueC')
+    recordedAt: Optional[str] = data.get('recordedAt')
     
     # Validate required fields
     if valueC is None:
-        abort(400)
+        return jsonify({'error': 'valueC is required'}), 400
     
-    # Validate valueC is within reasonable temperature range
-    if not isinstance(valueC, (int, float)) or valueC < Config.TEMP_MIN_CELSIUS or valueC > Config.TEMP_MAX_CELSIUS:
-        abort(422)  # Triggers 422 (Unprocessable Entity) error handler
+    # Validate temperature
+    is_valid, error_message = validate_temperature(float(valueC))
+    if not is_valid:
+        return jsonify({'error': error_message}), 422
     
     # Create reading model (ready for service integration)
     # TODO: Integrate with reading_service when storage is implemented
@@ -40,22 +49,24 @@ def create_reading():
 
 
 @readings_bp.route('/api/readings', methods=['GET'])
-def get_readings():
-    """Get all readings."""
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
+def get_readings() -> Tuple[Response, int]:
+    """
+    Get all readings.
     
-    # Get limit and offset with defaults from config, enforce max limit
-    try:
-        limit = int(request.args.get('limit', Config.API_READINGS_DEFAULT_LIMIT))
-        limit = min(limit, Config.API_READINGS_MAX_LIMIT)  # Enforce max limit
-    except (ValueError, TypeError):
-        limit = Config.API_READINGS_DEFAULT_LIMIT
+    Returns:
+        JSON response with status code
+    """
+    start_date: Optional[str] = request.args.get('start_date')
+    end_date: Optional[str] = request.args.get('end_date')
     
-    try:
-        offset = int(request.args.get('offset', Config.API_READINGS_DEFAULT_OFFSET))
-    except (ValueError, TypeError):
-        offset = Config.API_READINGS_DEFAULT_OFFSET
+    # Get limit and offset with validation
+    limit: int = validate_limit(request.args.get('limit'))
+    offset: int = validate_offset(request.args.get('offset'))
+    
     # readings = get_readings(start_date, end_date, limit, offset)
-    return jsonify({'message': 'Readings retrieved'}), 200
+    return jsonify({
+        'message': 'Readings retrieved',
+        'limit': limit,
+        'offset': offset
+    }), 200
 

@@ -1,5 +1,6 @@
 """Health and status routes."""
-from flask import Blueprint, jsonify
+from typing import Tuple
+from flask import Blueprint, jsonify, Response
 from config import get_config
 
 # Get configuration
@@ -10,17 +11,27 @@ health_bp = Blueprint('health', __name__)
 
 
 @health_bp.route('/')
-def index():
-    """Health check endpoint."""
+def index() -> Tuple[Response, int]:
+    """
+    Health check endpoint.
+    
+    Returns:
+        JSON response with API status and version, and HTTP status code
+    """
     return jsonify({
         'status': 'ok',
         'message': 'Temperature Monitor API',
         'version': Config.APP_VERSION
-    })
+    }), 200
 
 
 @health_bp.route('/api/health')
-def health():
-    """API health check endpoint."""
-    return jsonify({'status': 'healthy'})
+def health() -> Tuple[Response, int]:
+    """
+    API health check endpoint.
+    
+    Returns:
+        JSON response with health status and HTTP status code
+    """
+    return jsonify({'status': 'healthy'}), 200
 

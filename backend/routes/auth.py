@@ -1,6 +1,8 @@
 """Authentication routes."""
-from flask import Blueprint, jsonify, request, abort
+from typing import Tuple, Any
+from flask import Blueprint, jsonify, request, abort, Response
 from services.user_service import UserService
+from utils.validators import validate_username, validate_password
 
 # Create a Blueprint for auth routes
 auth_bp = Blueprint('auth', __name__)
@@ -10,17 +12,30 @@ user_service = UserService()
 
 
 @auth_bp.route('/api/signup', methods=['POST'])
-def signup():
-    """Sign up a new user."""
+def signup() -> Tuple[Response, int]:
+    """
+    Sign up a new user.
+    
+    Returns:
+        JSON response with status code
+    """
     # Check if request has JSON
     if not request.is_json:
         abort(400)  # Returns standard error response {'error': 'Bad request'} from error handler
     
-    username = request.json.get('username')
-    password = request.json.get('password')
+    data: dict[str, Any] = request.json or {}
+    username: str = data.get('username', '')
+    password: str = data.get('password', '')
 
-    if not username or not password:
-        abort(400)
+    # Validate username
+    is_valid_username, username_error = validate_username(username)
+    if not is_valid_username:
+        return jsonify({'error': username_error}), 400
+
+    # Validate password
+    is_valid_password, password_error = validate_password(password)
+    if not is_valid_password:
+        return jsonify({'error': password_error}), 400
 
     try:
         user_service.create_user(username, password)
@@ -29,15 +44,30 @@ def signup():
         return jsonify({'error': str(e)}), 400
 
 
-
 @auth_bp.route('/api/login', methods=['POST'])
-def login():
-    """Login a user."""
-    username = request.json.get('username')
-    password = request.json.get('password')
+def login() -> Tuple[Response, int]:
+    """
+    Login a user.
     
-    if not username or not password:
+    Returns:
+        JSON response with status code
+    """
+    if not request.is_json:
         abort(400)
+    
+    data: dict[str, Any] = request.json or {}
+    username: str = data.get('username', '')
+    password: str = data.get('password', '')
+    
+    # Validate username
+    is_valid_username, username_error = validate_username(username)
+    if not is_valid_username:
+        return jsonify({'error': username_error}), 400
+
+    # Validate password
+    is_valid_password, password_error = validate_password(password)
+    if not is_valid_password:
+        return jsonify({'error': password_error}), 400
 
     # Check if user exists
     if not user_service.user_exists(username):
