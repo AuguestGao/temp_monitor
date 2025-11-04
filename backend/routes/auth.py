@@ -1,11 +1,12 @@
 """Authentication routes."""
 from typing import Tuple, Any
-from flask import Blueprint, jsonify, request, abort, Response
+from flask import Blueprint, jsonify, request, abort, Response, g
 from services.user_service import UserService
 from services.jwt_service import jwt_service
 from services.token_storage import token_storage
 from utils.validators import validate_username, validate_password
 from utils.rate_limiter import rate_limiter
+from utils.auth_middleware import require_refresh_token
 from exceptions import ValidationError, AuthenticationError, NotFoundError, RateLimitError
 from constants import HTTP_BAD_REQUEST, HTTP_CREATED, HTTP_OK
 
