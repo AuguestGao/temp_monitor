@@ -2,6 +2,7 @@
 import serial
 import serial.tools.list_ports
 import csv
+import logging
 from datetime import datetime, timezone
 import time
 import sys
@@ -11,6 +12,11 @@ import os
 # Import configuration
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from config import get_config, get_default_serial_ports
+from utils.logging_config import setup_logging
+
+# Set up logging
+setup_logging()
+logger = logging.getLogger(__name__)
 
 # Get configuration
 Config = get_config()
@@ -27,6 +33,7 @@ def find_arduino_port():
     for port in serial.tools.list_ports.comports():
         # Common Arduino vendor IDs from config
         if port.vid and port.vid in Config.ARDUINO_VENDOR_IDS:
+            logger.info(f"Found Arduino-like device at: {port.device}")
             print(f"Found Arduino-like device at: {port.device}")
             return port.device
     
@@ -36,6 +43,7 @@ def find_arduino_port():
             # Try to open the port to verify it exists
             test_ser = serial.Serial(port_name, BAUD_RATE, timeout=0.5)
             test_ser.close()
+            logger.info(f"Found serial port: {port_name}")
             print(f"Found serial port: {port_name}")
             return port_name
         except (serial.SerialException, OSError):
@@ -67,6 +75,7 @@ def check_permissions(port_path):
     """Check if user has permissions to access the serial port."""
     if platform.system() == 'Linux':
         if not os.access(port_path, os.R_OK | os.W_OK):
+            logger.error(f"Permission denied for {port_path}")
             print(f"\n⚠️  Permission denied for {port_path}")
             print("You may need to:")
             print("  1. Add your user to the 'dialout' group:")
@@ -98,10 +107,12 @@ def main():
     if not check_permissions(serial_port):
         sys.exit(1)
     
+    logger.info(f"Connecting to serial port {serial_port} at {BAUD_RATE} baud...")
     print(f"Connecting to serial port {serial_port} at {BAUD_RATE} baud...")
     
     try:
         ser = serial.Serial(serial_port, BAUD_RATE, timeout=Config.SERIAL_TIMEOUT)
+        logger.info(f"Connected to serial port {serial_port}. Writing to {CSV_FILE}")
         print(f"✅ Connected! Reading data and writing to {CSV_FILE}")
         print("Press Ctrl+C to stop\n")
         
@@ -119,6 +130,7 @@ def main():
                         
                         # Validate temperature range from config
                         if tempC < Config.TEMP_MIN_CELSIUS or tempC > Config.TEMP_MAX_CELSIUS:
+                            logger.warning(f"Temperature {tempC}°C outside valid range [{Config.TEMP_MIN_CELSIUS}, {Config.TEMP_MAX_CELSIUS}]")
                             print(f"⚠️  Temperature {tempC}°C outside valid range [{Config.TEMP_MIN_CELSIUS}, {Config.TEMP_MAX_CELSIUS}]")
                             continue
                         
@@ -130,16 +142,20 @@ def main():
                             writer = csv.writer(f)
                             writer.writerow([timestamp, tempC])
                         
+                        logger.debug(f"Temperature reading: {tempC}°C at {timestamp}")
                         print(f"[{timestamp}] {tempC}°C")
                         
                 except ValueError as e:
+                    logger.warning(f"Error parsing line '{line}': {e}")
                     print(f"⚠️  Error parsing line '{line}': {e}")
                 except Exception as e:
+                    logger.error(f"Error processing data: {e}", exc_info=True)
                     print(f"⚠️  Error processing data: {e}")
             
             time.sleep(Config.SERIAL_READ_DELAY)  # Small delay to prevent CPU spinning
             
     except serial.SerialException as e:
+        logger.error(f"Serial port error: {e}", exc_info=True)
         print(f"❌ Serial port error: {e}")
         print(f"\nPlease check:")
         print(f"1. Arduino is connected and powered on")
@@ -150,6 +166,7 @@ def main():
         list_available_ports()
         sys.exit(1)
     except PermissionError as e:
+        logger.error(f"Permission denied: {e}", exc_info=True)
         print(f"❌ Permission denied: {e}")
         if platform.system() == 'Linux':
             print("\nOn Raspberry Pi, add your user to the dialout group:")
@@ -157,12 +174,15 @@ def main():
             print("Then log out and back in, or restart.")
         sys.exit(1)
     except KeyboardInterrupt:
+        logger.info("Serial ingest stopped by user")
         print("\n\nStopping serial ingest...")
         if 'ser' in locals():
             ser.close()
+            logger.info("Serial port closed")
         print("✅ Disconnected")
         sys.exit(0)
     except Exception as e:
+        logger.critical(f"Unexpected error: {e}", exc_info=True)
         print(f"❌ Unexpected error: {e}")
         import traceback
         traceback.print_exc()
