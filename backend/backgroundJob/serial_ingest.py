@@ -3,34 +3,30 @@ import serial
 import serial.tools.list_ports
 import csv
 from datetime import datetime, timezone
-from pathlib import Path
 import time
 import sys
 import platform
 import os
 
-# Configuration
-BAUD_RATE = 9600
-CSV_FILE = Path(__file__).parent.parent / 'storage' / 'temp_data.csv'
+# Import configuration
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from config import get_config, get_default_serial_ports
 
-# Common serial ports for different platforms
-if platform.system() == 'Windows':
-    DEFAULT_PORTS = ['COM3', 'COM4', 'COM5']
-elif platform.system() == 'Linux':
-    # Raspberry Pi common ports: /dev/ttyUSB0, /dev/ttyACM0, /dev/ttyAMA0
-    DEFAULT_PORTS = ['/dev/ttyUSB0', '/dev/ttyACM0', '/dev/ttyAMA0']
-elif platform.system() == 'Darwin':  # macOS
-    DEFAULT_PORTS = ['/dev/tty.usbserial', '/dev/tty.usbmodem']
-else:
-    DEFAULT_PORTS = []
+# Get configuration
+Config = get_config()
+
+# Configuration from config module
+BAUD_RATE = Config.SERIAL_BAUD_RATE
+CSV_FILE = Config.TEMP_DATA_CSV_FILE
+DEFAULT_PORTS = get_default_serial_ports()
 
 
 def find_arduino_port():
     """Auto-detect Arduino serial port by checking common ports."""
     # First, try to find via USB VID/PID (more reliable)
     for port in serial.tools.list_ports.comports():
-        # Common Arduino vendor IDs
-        if port.vid and port.vid in [0x2341, 0x2A03, 0x239A]:  # Arduino, Adafruit, etc.
+        # Common Arduino vendor IDs from config
+        if port.vid and port.vid in Config.ARDUINO_VENDOR_IDS:
             print(f"Found Arduino-like device at: {port.device}")
             return port.device
     
@@ -105,7 +101,7 @@ def main():
     print(f"Connecting to serial port {serial_port} at {BAUD_RATE} baud...")
     
     try:
-        ser = serial.Serial(serial_port, BAUD_RATE, timeout=1)
+        ser = serial.Serial(serial_port, BAUD_RATE, timeout=Config.SERIAL_TIMEOUT)
         print(f"✅ Connected! Reading data and writing to {CSV_FILE}")
         print("Press Ctrl+C to stop\n")
         
@@ -120,6 +116,11 @@ def main():
                     if line:
                         # Parse temperature value as integer (Arduino outputs int)
                         tempC = int(line)
+                        
+                        # Validate temperature range from config
+                        if tempC < Config.TEMP_MIN_CELSIUS or tempC > Config.TEMP_MAX_CELSIUS:
+                            print(f"⚠️  Temperature {tempC}°C outside valid range [{Config.TEMP_MIN_CELSIUS}, {Config.TEMP_MAX_CELSIUS}]")
+                            continue
                         
                         # Generate timestamp
                         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
@@ -136,7 +137,7 @@ def main():
                 except Exception as e:
                     print(f"⚠️  Error processing data: {e}")
             
-            time.sleep(0.1)  # Small delay to prevent CPU spinning
+            time.sleep(Config.SERIAL_READ_DELAY)  # Small delay to prevent CPU spinning
             
     except serial.SerialException as e:
         print(f"❌ Serial port error: {e}")

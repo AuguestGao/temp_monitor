@@ -1,5 +1,9 @@
 """Health and status routes."""
 from flask import Blueprint, jsonify
+from config import get_config
+
+# Get configuration
+Config = get_config()
 
 # Create a Blueprint for health routes
 health_bp = Blueprint('health', __name__)
@@ -11,7 +15,7 @@ def index():
     return jsonify({
         'status': 'ok',
         'message': 'Temperature Monitor API',
-        'version': '0.1.0'
+        'version': Config.APP_VERSION
     })
 
 

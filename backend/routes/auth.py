@@ -1,9 +1,11 @@
 """Authentication routes."""
 import json
-import os
 import bcrypt
-from pathlib import Path
 from flask import Blueprint, jsonify, request, abort
+from config import get_config
+
+# Get configuration
+Config = get_config()
 
 # Create a Blueprint for auth routes
 auth_bp = Blueprint('auth', __name__)
@@ -64,9 +66,7 @@ def read_users_json_file():
     Returns:
         list: List of user dictionaries. Returns empty list if file doesn't exist or is empty.
     """
-    # Get the path relative to this file's location
-    current_dir = Path(__file__).parent.parent  # Go up from routes/ to backend/
-    json_file_path = current_dir / 'storage' / 'users.json'
+    json_file_path = Config.USERS_JSON_FILE
     
     # Return empty list if file doesn't exist
     if not json_file_path.exists():
@@ -111,12 +111,10 @@ def write_users_json_file(users):
     Args:
         users: The list of users to write to the file.
     """
-    current_dir = Path(__file__).parent.parent
-    storage_dir = current_dir / 'storage'
-    json_file_path = storage_dir / 'users.json'
+    json_file_path = Config.USERS_JSON_FILE
     
     # Create storage directory if it doesn't exist
-    storage_dir.mkdir(parents=True, exist_ok=True)
+    Config.STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     
     # Write to file (mode 'w' creates file if it doesn't exist and replaces old content)
     with open(json_file_path, 'w', encoding='utf-8') as file:
