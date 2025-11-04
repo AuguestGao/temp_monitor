@@ -48,11 +48,17 @@ def app(test_config):
     # Set test environment
     os.environ['FLASK_ENV'] = 'testing'
     
-    # IMPORTANT: Import routes AFTER config is updated so UserService uses test storage
+    # IMPORTANT: Reload routes module AFTER config is updated so UserService uses test storage
     # This ensures UserService in routes.auth uses the updated Config.USERS_JSON_FILE
-    from routes.auth import auth_bp
-    from routes.health import health_bp
-    from routes.readings import readings_bp
+    import importlib
+    import routes.auth as auth_module
+    import routes.health as health_module
+    import routes.readings as readings_module
+    
+    # Reload modules to recreate UserService with updated config
+    importlib.reload(auth_module)
+    importlib.reload(health_module)
+    importlib.reload(readings_module)
     
     app = Flask(__name__)
     app.config['TESTING'] = True
@@ -63,10 +69,10 @@ def app(test_config):
     token_storage.blacklisted_tokens.clear()
     rate_limiter.failed_attempts.clear()
     
-    # Register blueprints
-    app.register_blueprint(health_bp)
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(readings_bp)
+    # Register blueprints (use reloaded modules)
+    app.register_blueprint(health_module.health_bp)
+    app.register_blueprint(auth_module.auth_bp)
+    app.register_blueprint(readings_module.readings_bp)
     
     # Register error handlers
     register_error_handlers(app)
@@ -111,9 +117,12 @@ def auth_headers():
 
 
 @pytest.fixture(scope='function')
-def test_user(test_config):
-    """Create a test user in isolated storage and clean up after."""
-    # Import here to ensure Config is already updated by test_config fixture
+def test_user(app):
+    """Create a test user in isolated storage and clean up after.
+    
+    This fixture depends on app to ensure routes are reloaded with test config first.
+    """
+    # Import here to ensure Config is already updated and routes are reloaded
     from services.user_service import UserService
     
     # Create fresh UserService instance that will use the updated Config
@@ -131,14 +140,18 @@ def test_user(test_config):
     except Exception:
         pass
     
-    # Create user
+    # Create user - ensure it exists in test storage
     try:
         if not user_service.user_exists(username):
             user_service.create_user(username, password)
+        # Verify user was created
+        assert user_service.user_exists(username), "Test user should exist after creation"
     except Exception as e:
         # If creation fails, log and continue
         import logging
-        logging.getLogger(__name__).warning(f"Failed to create test user: {e}")
+        logger = logging.getLogger(__name__)
+        logger.error(f"Failed to create test user: {e}", exc_info=True)
+        raise  # Re-raise to fail the test if user creation fails
     
     yield {'username': username, 'password': password}
     

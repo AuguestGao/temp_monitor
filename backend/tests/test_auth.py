@@ -6,6 +6,7 @@ from constants import (
     HTTP_CREATED,
     HTTP_BAD_REQUEST,
     HTTP_UNAUTHORIZED,
+    HTTP_NOT_FOUND,
     HTTP_TOO_MANY_REQUESTS
 )
 from services.jwt_service import jwt_service
@@ -122,15 +123,17 @@ class TestLogin:
     
     def test_login_invalid_username(self, client):
         """Test login with non-existent username."""
+        from constants import HTTP_NOT_FOUND
+        
         response = client.post(
             '/api/login',
             json={'username': 'nonexistent', 'password': 'password123'}
         )
         
-        assert response.status_code == HTTP_BAD_REQUEST
+        assert response.status_code == HTTP_NOT_FOUND
         data = response.get_json()
         assert 'error' in data
-        assert 'not exist' in data['error'].lower()
+        assert 'not found' in data['error'].lower()
     
     def test_login_invalid_password(self, client, test_user):
         """Test login with wrong password."""
@@ -195,12 +198,19 @@ class TestRefreshToken:
         )
         
         assert login_response.status_code == HTTP_OK
-        refresh_token = login_response.get_json()['refresh_token']
+        old_refresh_token = login_response.get_json()['refresh_token']
+        
+        # Verify old token is active before refresh
+        username = test_user['username']
+        assert token_storage.is_refresh_token_active(username, old_refresh_token)
+        
+        # Add small delay to ensure new token has different timestamp
+        time.sleep(1)
         
         # Refresh token
         response = client.post(
             '/api/refresh-token',
-            headers=auth_headers(refresh_token)
+            headers=auth_headers(old_refresh_token)
         )
         
         assert response.status_code == HTTP_OK
@@ -208,7 +218,12 @@ class TestRefreshToken:
         assert data['message'] == 'Token refreshed'
         assert 'access_token' in data
         assert 'refresh_token' in data
-        assert data['refresh_token'] != refresh_token  # Token rotated
+        new_refresh_token = data['refresh_token']
+        
+        # Verify old token is revoked (token rotation)
+        assert not token_storage.is_refresh_token_active(username, old_refresh_token), "Old refresh token should be revoked"
+        # Verify new token is active
+        assert token_storage.is_refresh_token_active(username, new_refresh_token), "New refresh token should be active"
     
     def test_refresh_token_missing(self, client):
         """Test refresh without token."""
