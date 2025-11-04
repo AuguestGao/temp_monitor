@@ -46,7 +46,8 @@ def find_arduino_port():
             logger.info(f"Found serial port: {port_name}")
             print(f"Found serial port: {port_name}")
             return port_name
-        except (serial.SerialException, OSError):
+        except (serial.SerialException, OSError, ValueError):
+            # ValueError can occur if port name is invalid
             continue
     
     return None
@@ -67,7 +68,7 @@ def ensure_csv_header(file_path):
     """Ensure CSV file exists with header row."""
     if not file_path.exists():
         file_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(file_path, 'w', newline='') as f:
+        with open(file_path, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(['recordedAt', 'tempC'])
 
@@ -122,11 +123,24 @@ def main():
             if ser.in_waiting > 0:
                 try:
                     # Read line from serial
-                    line = ser.readline().decode('utf-8').strip()
+                    raw_line = ser.readline()
+                    
+                    # Decode with error handling
+                    try:
+                        line = raw_line.decode('utf-8').strip()
+                    except UnicodeDecodeError as e:
+                        logger.warning(f"Failed to decode line as UTF-8: {e}")
+                        print(f"⚠️  Failed to decode line (skipping): {raw_line[:50]}")
+                        continue
                     
                     if line:
-                        # Parse temperature value as integer (Arduino outputs int)
-                        tempC = int(line)
+                        # Parse temperature value as float (supports both int and decimal)
+                        try:
+                            tempC = float(line)
+                        except ValueError:
+                            logger.warning(f"Invalid temperature value: '{line}'")
+                            print(f"⚠️  Invalid temperature value: '{line}' (expected a number)")
+                            continue
                         
                         # Validate temperature range from config
                         if tempC < Config.TEMP_MIN_CELSIUS or tempC > Config.TEMP_MAX_CELSIUS:
@@ -137,8 +151,8 @@ def main():
                         # Generate timestamp
                         timestamp = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
                         
-                        # Append to CSV file
-                        with open(CSV_FILE, 'a', newline='') as f:
+                        # Append to CSV file (Path object works with open() in Python 3.6+)
+                        with open(CSV_FILE, 'a', newline='', encoding='utf-8') as f:
                             writer = csv.writer(f)
                             writer.writerow([timestamp, tempC])
                         
@@ -146,8 +160,8 @@ def main():
                         print(f"[{timestamp}] {tempC}°C")
                         
                 except ValueError as e:
-                    logger.warning(f"Error parsing line '{line}': {e}")
-                    print(f"⚠️  Error parsing line '{line}': {e}")
+                    logger.warning(f"Error parsing line '{line if 'line' in locals() else 'unknown'}': {e}")
+                    print(f"⚠️  Error parsing line: {e}")
                 except Exception as e:
                     logger.error(f"Error processing data: {e}", exc_info=True)
                     print(f"⚠️  Error processing data: {e}")
