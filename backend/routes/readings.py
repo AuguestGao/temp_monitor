@@ -1,6 +1,7 @@
 """Temperature reading routes."""
 from flask import Blueprint, jsonify, request, abort
 from config import get_config
+from models.reading import Reading
 
 # Get configuration
 Config = get_config()
@@ -16,21 +17,26 @@ def create_reading():
     if not request.is_json:
         abort(400)
     
-    room = request.json.get('room')
     valueC = request.json.get('valueC')
     recordedAt = request.json.get('recordedAt')
-    source = request.json.get('source')
     
     # Validate required fields
-    if not room or valueC is None:
+    if valueC is None:
         abort(400)
     
     # Validate valueC is within reasonable temperature range
     if not isinstance(valueC, (int, float)) or valueC < Config.TEMP_MIN_CELSIUS or valueC > Config.TEMP_MAX_CELSIUS:
         abort(422)  # Triggers 422 (Unprocessable Entity) error handler
     
-    # create_reading(room, valueC, recordedAt, source)
-    return jsonify({'message': 'Reading created'}), 201
+    # Create reading model (ready for service integration)
+    # TODO: Integrate with reading_service when storage is implemented
+    reading = Reading(
+        tempC=float(valueC),
+        recordedAt=recordedAt or Reading.create_now(float(valueC)).recordedAt
+    )
+    
+    # create_reading(reading)  # Will be implemented with reading_service
+    return jsonify({'message': 'Reading created', 'reading': reading.to_dict()}), 201
 
 
 @readings_bp.route('/api/readings', methods=['GET'])
@@ -38,7 +44,6 @@ def get_readings():
     """Get all readings."""
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
-    room = request.args.get('room')
     
     # Get limit and offset with defaults from config, enforce max limit
     try:
@@ -51,6 +56,6 @@ def get_readings():
         offset = int(request.args.get('offset', Config.API_READINGS_DEFAULT_OFFSET))
     except (ValueError, TypeError):
         offset = Config.API_READINGS_DEFAULT_OFFSET
-    # readings = get_readings(start_date, end_date, room, limit, offset)
+    # readings = get_readings(start_date, end_date, limit, offset)
     return jsonify({'message': 'Readings retrieved'}), 200
 
