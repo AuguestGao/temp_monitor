@@ -47,6 +47,12 @@ class Config:
     
     # Arduino vendor IDs for auto-detection
     ARDUINO_VENDOR_IDS = [0x2341, 0x2A03, 0x239A]  # Arduino, Adafruit, etc.
+    
+    # Rate limiting configuration
+    RATE_LIMIT_MAX_ATTEMPTS = int(os.environ.get('RATE_LIMIT_MAX_ATTEMPTS', 5))
+    RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get('RATE_LIMIT_WINDOW_SECONDS', 300))  # 5 minutes
+    RATE_LIMIT_LOCKOUT_DURATION = int(os.environ.get('RATE_LIMIT_LOCKOUT_DURATION', 900))  # 15 minutes
+    RATE_LIMIT_RESET_KEY = os.environ.get('RATE_LIMIT_RESET_KEY', 'clear')
 
 
 def get_default_serial_ports() -> List[str]:

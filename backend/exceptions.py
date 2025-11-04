@@ -4,7 +4,8 @@ from constants import (
     HTTP_NOT_FOUND,
     HTTP_UNAUTHORIZED,
     HTTP_FORBIDDEN,
-    HTTP_UNPROCESSABLE_ENTITY
+    HTTP_UNPROCESSABLE_ENTITY,
+    HTTP_TOO_MANY_REQUESTS
 )
 
 
@@ -111,4 +112,21 @@ class UnprocessableEntityError(APIException):
             details: Additional error details
         """
         super().__init__(message, status_code=HTTP_UNPROCESSABLE_ENTITY, details=details)
+
+
+class RateLimitError(APIException):
+    """Exception for rate limit errors."""
+    
+    def __init__(self, message: str, retry_after: int = None):
+        """
+        Initialize rate limit error.
+        
+        Args:
+            message: Error message
+            retry_after: Seconds until retry is allowed
+        """
+        details = {}
+        if retry_after is not None:
+            details['retry_after'] = retry_after
+        super().__init__(message, status_code=HTTP_TOO_MANY_REQUESTS, details=details)
 

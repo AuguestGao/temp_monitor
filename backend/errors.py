@@ -9,6 +9,7 @@ from constants import (
     HTTP_FORBIDDEN,
     HTTP_NOT_FOUND,
     HTTP_UNPROCESSABLE_ENTITY,
+    HTTP_TOO_MANY_REQUESTS,
     HTTP_INTERNAL_SERVER_ERROR
 )
 
@@ -72,4 +73,11 @@ def register_error_handlers(app: Flask) -> None:
         error_message = str(error) if str(error) else 'Unprocessable entity'
         logger.warning(f"Unprocessable entity: {error_message}")
         return jsonify({'error': error_message}), HTTP_UNPROCESSABLE_ENTITY
+    
+    @app.errorhandler(HTTP_TOO_MANY_REQUESTS)
+    def too_many_requests(error: Exception) -> Tuple[Response, int]:
+        """Handle 429 Too Many Requests errors."""
+        error_message = str(error) if str(error) else 'Too many requests'
+        logger.warning(f"Too many requests: {error_message}")
+        return jsonify({'error': error_message}), HTTP_TOO_MANY_REQUESTS
 
