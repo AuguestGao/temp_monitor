@@ -13,7 +13,7 @@ class Config:
     """Configuration class with default settings."""
     
     # Flask configuration
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key')
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'secret-key')
     DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
     JSON_SORT_KEYS = False
     JSONIFY_PRETTYPRINT_REGULAR = True
@@ -53,6 +53,12 @@ class Config:
     RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get('RATE_LIMIT_WINDOW_SECONDS', 300))  # 5 minutes
     RATE_LIMIT_LOCKOUT_DURATION = int(os.environ.get('RATE_LIMIT_LOCKOUT_DURATION', 900))  # 15 minutes
     RATE_LIMIT_RESET_KEY = os.environ.get('RATE_LIMIT_RESET_KEY', 'clear')
+    
+    # JWT configuration
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', SECRET_KEY)  # Use SECRET_KEY if not set
+    JWT_ALGORITHM = os.environ.get('JWT_ALGORITHM', 'HS256')
+    JWT_ACCESS_TOKEN_EXPIRES_IN = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRES_IN', 900))  # 15 minutes
+    JWT_REFRESH_TOKEN_EXPIRES_IN = int(os.environ.get('JWT_REFRESH_TOKEN_EXPIRES_IN', 604800))  # 7 days
 
 
 def get_default_serial_ports() -> List[str]:

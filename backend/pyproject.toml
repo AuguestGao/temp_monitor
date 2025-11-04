@@ -9,4 +9,5 @@ dependencies = [
     "flask>=3.1.2",
     "flask-cors>=4.0.0",
     "pyserial>=3.5",
+    "PyJWT>=2.8.0",
 ]
