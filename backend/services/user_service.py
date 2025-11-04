@@ -3,6 +3,7 @@ import bcrypt
 from typing import Optional, Tuple
 from models.user import User
 from storage.file_storage import UserStorage
+from exceptions import ValidationError
 
 
 class UserService:
@@ -53,10 +54,10 @@ class UserService:
             Created User object
             
         Raises:
-            ValueError: If username already exists
+            ValidationError: If username already exists
         """
         if self.user_exists(username):
-            raise ValueError("Username already exists")
+            raise ValidationError("Username already exists", field='username')
         
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         user = User(username=username, password=hashed_password)

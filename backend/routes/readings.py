@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request, abort, Response
 from config import get_config
 from models.reading import Reading
 from utils.validators import validate_temperature, validate_limit, validate_offset
+from exceptions import ValidationError, UnprocessableEntityError
 
 # Get configuration
 Config = get_config()
@@ -30,12 +31,17 @@ def create_reading() -> Tuple[Response, int]:
     
     # Validate required fields
     if valueC is None:
-        return jsonify({'error': 'valueC is required'}), 400
+        raise ValidationError('valueC is required', field='valueC')
     
     # Validate temperature
-    is_valid, error_message = validate_temperature(float(valueC))
+    try:
+        temp_value = float(valueC)
+    except (ValueError, TypeError):
+        raise ValidationError('valueC must be a number', field='valueC')
+    
+    is_valid, error_message = validate_temperature(temp_value)
     if not is_valid:
-        return jsonify({'error': error_message}), 422
+        raise UnprocessableEntityError(error_message, details={'field': 'valueC', 'value': temp_value})
     
     # Create reading model (ready for service integration)
     # TODO: Integrate with reading_service when storage is implemented

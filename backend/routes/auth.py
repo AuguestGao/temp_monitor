@@ -3,6 +3,7 @@ from typing import Tuple, Any
 from flask import Blueprint, jsonify, request, abort, Response
 from services.user_service import UserService
 from utils.validators import validate_username, validate_password
+from exceptions import ValidationError, AuthenticationError, NotFoundError
 
 # Create a Blueprint for auth routes
 auth_bp = Blueprint('auth', __name__)
@@ -30,18 +31,18 @@ def signup() -> Tuple[Response, int]:
     # Validate username
     is_valid_username, username_error = validate_username(username)
     if not is_valid_username:
-        return jsonify({'error': username_error}), 400
+        raise ValidationError(username_error, field='username')
 
     # Validate password
     is_valid_password, password_error = validate_password(password)
     if not is_valid_password:
-        return jsonify({'error': password_error}), 400
+        raise ValidationError(password_error, field='password')
 
     try:
         user_service.create_user(username, password)
         return jsonify({'message': 'User signed up'}), 201
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        raise ValidationError(str(e))
 
 
 @auth_bp.route('/api/login', methods=['POST'])
@@ -62,19 +63,19 @@ def login() -> Tuple[Response, int]:
     # Validate username
     is_valid_username, username_error = validate_username(username)
     if not is_valid_username:
-        return jsonify({'error': username_error}), 400
+        raise ValidationError(username_error, field='username')
 
     # Validate password
     is_valid_password, password_error = validate_password(password)
     if not is_valid_password:
-        return jsonify({'error': password_error}), 400
+        raise ValidationError(password_error, field='password')
 
     # Check if user exists
     if not user_service.user_exists(username):
-        return jsonify({'error': 'Username does not exist'}), 400
+        raise NotFoundError('User', identifier=username)
 
     # Verify password
-    if user_service.verify_password(username, password):
-        return jsonify({'message': 'Login successful'}), 200
-    else:
-        return jsonify({'error': 'Invalid password'}), 401
+    if not user_service.verify_password(username, password):
+        raise AuthenticationError('Invalid password')
+    
+    return jsonify({'message': 'Login successful'}), 200
