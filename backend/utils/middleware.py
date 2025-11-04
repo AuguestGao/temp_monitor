@@ -3,6 +3,7 @@ import time
 import logging
 from typing import Callable
 from flask import request, g
+from constants import HTTP_INTERNAL_SERVER_ERROR
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def request_logging_middleware(app) -> None:
         
         return response
     
-    @app.errorhandler(500)
+    @app.errorhandler(HTTP_INTERNAL_SERVER_ERROR)
     def log_internal_error(error: Exception) -> None:
         """Log internal server errors."""
         logger.error(

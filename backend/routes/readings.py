@@ -5,6 +5,7 @@ from config import get_config
 from models.reading import Reading
 from utils.validators import validate_temperature, validate_limit, validate_offset
 from exceptions import ValidationError, UnprocessableEntityError
+from constants import HTTP_BAD_REQUEST, HTTP_CREATED, HTTP_OK
 
 # Get configuration
 Config = get_config()
@@ -23,7 +24,7 @@ def create_reading() -> Tuple[Response, int]:
     """
     # Validate JSON content type
     if not request.is_json:
-        abort(400)
+        abort(HTTP_BAD_REQUEST)
     
     data: dict[str, Any] = request.json or {}
     valueC: Any = data.get('valueC')
@@ -51,7 +52,7 @@ def create_reading() -> Tuple[Response, int]:
     )
     
     # create_reading(reading)  # Will be implemented with reading_service
-    return jsonify({'message': 'Reading created', 'reading': reading.to_dict()}), 201
+    return jsonify({'message': 'Reading created', 'reading': reading.to_dict()}), HTTP_CREATED
 
 
 @readings_bp.route('/api/readings', methods=['GET'])
@@ -74,5 +75,5 @@ def get_readings() -> Tuple[Response, int]:
         'message': 'Readings retrieved',
         'limit': limit,
         'offset': offset
-    }), 200
+    }), HTTP_OK
 

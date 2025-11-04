@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request, abort, Response
 from services.user_service import UserService
 from utils.validators import validate_username, validate_password
 from exceptions import ValidationError, AuthenticationError, NotFoundError
+from constants import HTTP_BAD_REQUEST, HTTP_CREATED, HTTP_OK
 
 # Create a Blueprint for auth routes
 auth_bp = Blueprint('auth', __name__)
@@ -22,7 +23,7 @@ def signup() -> Tuple[Response, int]:
     """
     # Check if request has JSON
     if not request.is_json:
-        abort(400)  # Returns standard error response {'error': 'Bad request'} from error handler
+        abort(HTTP_BAD_REQUEST)  # Returns standard error response {'error': 'Bad request'} from error handler
     
     data: dict[str, Any] = request.json or {}
     username: str = data.get('username', '')
@@ -40,7 +41,7 @@ def signup() -> Tuple[Response, int]:
 
     try:
         user_service.create_user(username, password)
-        return jsonify({'message': 'User signed up'}), 201
+        return jsonify({'message': 'User signed up'}), HTTP_CREATED
     except ValueError as e:
         raise ValidationError(str(e))
 
@@ -54,7 +55,7 @@ def login() -> Tuple[Response, int]:
         JSON response with status code
     """
     if not request.is_json:
-        abort(400)
+        abort(HTTP_BAD_REQUEST)
     
     data: dict[str, Any] = request.json or {}
     username: str = data.get('username', '')
@@ -78,4 +79,4 @@ def login() -> Tuple[Response, int]:
     if not user_service.verify_password(username, password):
         raise AuthenticationError('Invalid password')
     
-    return jsonify({'message': 'Login successful'}), 200
+    return jsonify({'message': 'Login successful'}), HTTP_OK

@@ -2,6 +2,7 @@
 from typing import Tuple
 from flask import Blueprint, jsonify, Response
 from config import get_config
+from constants import HTTP_OK
 
 # Get configuration
 Config = get_config()
@@ -22,7 +23,7 @@ def index() -> Tuple[Response, int]:
         'status': 'ok',
         'message': 'Temperature Monitor API',
         'version': Config.APP_VERSION
-    }), 200
+    }), HTTP_OK
 
 
 @health_bp.route('/api/health')
@@ -33,5 +34,5 @@ def health() -> Tuple[Response, int]:
     Returns:
         JSON response with health status and HTTP status code
     """
-    return jsonify({'status': 'healthy'}), 200
+    return jsonify({'status': 'healthy'}), HTTP_OK
 

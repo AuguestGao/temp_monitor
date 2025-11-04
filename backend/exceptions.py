@@ -1,10 +1,17 @@
 """Custom exception classes for the temperature monitoring system."""
+from constants import (
+    HTTP_BAD_REQUEST,
+    HTTP_NOT_FOUND,
+    HTTP_UNAUTHORIZED,
+    HTTP_FORBIDDEN,
+    HTTP_UNPROCESSABLE_ENTITY
+)
 
 
 class APIException(Exception):
     """Base exception class for API errors."""
     
-    def __init__(self, message: str, status_code: int = 400, details: dict = None):
+    def __init__(self, message: str, status_code: int = HTTP_BAD_REQUEST, details: dict = None):
         """
         Initialize API exception.
         
@@ -41,7 +48,7 @@ class ValidationError(APIException):
         if field:
             details = details or {}
             details['field'] = field
-        super().__init__(message, status_code=400, details=details)
+        super().__init__(message, status_code=HTTP_BAD_REQUEST, details=details)
 
 
 class NotFoundError(APIException):
@@ -63,7 +70,7 @@ class NotFoundError(APIException):
         if identifier:
             details['identifier'] = identifier
         
-        super().__init__(message, status_code=404, details=details)
+        super().__init__(message, status_code=HTTP_NOT_FOUND, details=details)
 
 
 class AuthenticationError(APIException):
@@ -76,7 +83,7 @@ class AuthenticationError(APIException):
         Args:
             message: Error message
         """
-        super().__init__(message, status_code=401)
+        super().__init__(message, status_code=HTTP_UNAUTHORIZED)
 
 
 class AuthorizationError(APIException):
@@ -89,7 +96,7 @@ class AuthorizationError(APIException):
         Args:
             message: Error message
         """
-        super().__init__(message, status_code=403)
+        super().__init__(message, status_code=HTTP_FORBIDDEN)
 
 
 class UnprocessableEntityError(APIException):
@@ -103,5 +110,5 @@ class UnprocessableEntityError(APIException):
             message: Error message
             details: Additional error details
         """
-        super().__init__(message, status_code=422, details=details)
+        super().__init__(message, status_code=HTTP_UNPROCESSABLE_ENTITY, details=details)
 
