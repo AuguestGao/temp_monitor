@@ -1,8 +1,11 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "temp-monitor"
 version = "0.1.0"
 description = "Add your description here"
-readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
     "bcrypt>=5.0.0",
@@ -27,3 +30,14 @@ addopts = [
 markers = [
     "slow: marks tests as slow (dont run on every commit)",
 ]
+
+[tool.uv]
+package = true
+
+[tool.setuptools]
+packages = ["models", "routes", "storage", "services", "backgroundJob", "utils"]
+py-modules = ["main", "config", "constants", "errors", "exceptions"]
+
+[project.scripts]
+dev = "main:run_backend"
+serial = "backgroundJob.serial_ingest:main"

@@ -37,6 +37,7 @@ storage/*.csv
 # Build artifacts
 dist/
 build/
+*.egg-info/
 
 # project specific
 backend/storage/*

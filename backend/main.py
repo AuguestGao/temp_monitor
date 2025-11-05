@@ -39,12 +39,15 @@ app.register_blueprint(readings_bp)
 register_error_handlers(app)
 
 
-if __name__ == '__main__':
-    # Run the Flask app with auto-reload enabled
-    # Flask automatically reloads on file changes when debug=True
+def run_backend():
+    """Entry point for running the development server."""
     app.run(
         host=Config.HOST,
         port=Config.PORT,
         debug=Config.DEBUG,
         use_reloader=Config.DEBUG
     )
+
+
+if __name__ == '__main__':
+    run_backend()
