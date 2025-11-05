@@ -119,3 +119,33 @@ def validate_offset(offset: Optional[int]) -> int:
     except (ValueError, TypeError):
         return Config.API_READINGS_DEFAULT_OFFSET
 
+
+def validate_datetime_string(datetime_str: str) -> tuple[bool, Optional[str]]:
+    """
+    Validate datetime string format (ISO 8601).
+    
+    Args:
+        datetime_str: Datetime string to validate
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not datetime_str:
+        return False, "Datetime string is required"
+    
+    if not isinstance(datetime_str, str):
+        return False, "Datetime must be a string"
+    
+    try:
+        from datetime import datetime
+        # Try to parse ISO format
+        datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
+        return True, None
+    except ValueError:
+        try:
+            # Try without timezone
+            datetime.fromisoformat(datetime_str)
+            return True, None
+        except ValueError:
+            return False, "Datetime must be in ISO 8601 format (e.g., '2025-11-04T10:00:00')"
+

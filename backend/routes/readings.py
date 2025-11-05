@@ -1,82 +1,72 @@
 """Temperature reading routes."""
-from typing import Tuple, Any, Optional
-from flask import Blueprint, jsonify, request, abort, Response
-from config import get_config
-from models.reading import Reading
-from utils.validators import validate_temperature, validate_limit, validate_offset
+import logging
+from typing import Tuple, Optional, Dict, Any
+from flask import Blueprint, jsonify, request, Response
+from services.reading_service import ReadingService
 from utils.auth_middleware import require_auth
-from exceptions import ValidationError, UnprocessableEntityError
-from constants import HTTP_BAD_REQUEST, HTTP_CREATED, HTTP_OK
+from utils.timezone_utils import convert_utc_to_toronto
+from constants import HTTP_OK
 
-# Get configuration
-Config = get_config()
+logger = logging.getLogger(__name__)
 
 # Create a Blueprint for readings routes
 readings_bp = Blueprint('readings', __name__)
 
-
-# @readings_bp.route('/api/reading', methods=['POST'])
-# @require_auth
-# def create_reading() -> Tuple[Response, int]:
-#     """
-#     Create a new reading.
-    
-#     Returns:
-#         JSON response with status code
-#     """
-#     # Validate JSON content type
-#     if not request.is_json:
-#         abort(HTTP_BAD_REQUEST)
-    
-#     data: dict[str, Any] = request.json or {}
-#     valueC: Any = data.get('valueC')
-#     recordedAt: Optional[str] = data.get('recordedAt')
-    
-#     # Validate required fields
-#     if valueC is None:
-#         raise ValidationError('valueC is required', field='valueC')
-    
-#     # Validate temperature
-#     try:
-#         temp_value = float(valueC)
-#     except (ValueError, TypeError):
-#         raise ValidationError('valueC must be a number', field='valueC')
-    
-#     is_valid, error_message = validate_temperature(temp_value)
-#     if not is_valid:
-#         raise UnprocessableEntityError(error_message, details={'field': 'valueC', 'value': temp_value})
-    
-#     # Create reading model (ready for service integration)
-#     # TODO: Integrate with reading_service when storage is implemented
-#     reading = Reading(
-#         tempC=float(valueC),
-#         recordedAt=recordedAt or Reading.create_now(float(valueC)).recordedAt
-#     )
-    
-#     # create_reading(reading)  # Will be implemented with reading_service
-#     return jsonify({'message': 'Reading created', 'reading': reading.to_dict()}), HTTP_CREATED
+# Initialize reading service
+reading_service = ReadingService()
 
 
 @readings_bp.route('/api/readings', methods=['GET'])
 @require_auth
 def get_readings() -> Tuple[Response, int]:
     """
-    Get all readings.
+    Get temperature readings filtered by date range.
+    
+    Query parameters:
+        startDateTime: Start datetime in Toronto timezone (ISO format, optional)
+                      Example: "2025-11-04T10:00:00"
+        endDateTime: End datetime in Toronto timezone (ISO format, optional)
+                    Example: "2025-11-04T11:00:00"
     
     Returns:
-        JSON response with status code
+        JSON response with filtered readings:
+        {
+            "message": "Readings retrieved",
+            "count": <number>,
+            "readings": [<Reading objects>]
+        }
+        
+    Raises:
+        ValidationError: If datetime strings are invalid or startDateTime > endDateTime
     """
-    start_date: Optional[str] = request.args.get('start_date')
-    end_date: Optional[str] = request.args.get('end_date')
+    start_datetime_str: Optional[str] = request.args.get('startDateTime')
+    end_datetime_str: Optional[str] = request.args.get('endDateTime')
     
-    # Get limit and offset with validation
-    limit: int = validate_limit(request.args.get('limit'))
-    offset: int = validate_offset(request.args.get('offset'))
+    logger.info(
+        f"Retrieving readings - startDateTime: {start_datetime_str}, endDateTime: {end_datetime_str}"
+    )
     
-    # readings = get_readings(start_date, end_date, limit, offset)
+    # Get readings from service (handles timezone conversion and filtering)
+    readings = reading_service.get_readings(start_datetime_str, end_datetime_str)
+    
+    # Convert to dictionary format and convert UTC timestamps to Toronto time
+    readings_data: list[Dict[str, Any]] = []
+    for reading in readings:
+        reading_dict = reading.to_dict()
+        # Convert recordedAt from UTC to Toronto time
+        try:
+            reading_dict['recordedAt'] = convert_utc_to_toronto(reading_dict['recordedAt'])
+        except ValueError as e:
+            logger.warning(f"Failed to convert timestamp to Toronto time: {e}, keeping original")
+            # Keep original timestamp if conversion fails
+        
+        readings_data.append(reading_dict)
+    
+    logger.info(f"Returning {len(readings_data)} readings")
+    
     return jsonify({
         'message': 'Readings retrieved',
-        'limit': limit,
-        'offset': offset
+        'count': len(readings_data),
+        'readings': readings_data
     }), HTTP_OK
 
