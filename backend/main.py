@@ -2,6 +2,7 @@
 Flask application for temperature monitoring system.
 """
 
+import logging
 from flask import Flask
 from flask_cors import CORS
 from routes.auth import auth_bp
@@ -37,6 +38,19 @@ app.register_blueprint(readings_bp)
 
 # Register error handlers
 register_error_handlers(app)
+
+# Load CSV data into memory on startup
+# This happens when ReadingService is initialized, which creates ReadingStorage
+# ReadingStorage loads data in its __init__ method
+from services.reading_service import ReadingService
+from storage.reading_storage import ReadingStorage
+logger = logging.getLogger(__name__)
+try:
+    # Initialize storage to load CSV data
+    storage = ReadingStorage()
+    logger.info(f"CSV data loaded on startup: {len(storage._readings_cache)} readings in memory")
+except Exception as e:
+    logger.error(f"Failed to load CSV data on startup: {e}", exc_info=True)
 
 
 def run_backend():

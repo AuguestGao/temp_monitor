@@ -20,24 +20,24 @@ reading_service = ReadingService()
 @require_auth
 def get_readings() -> Tuple[Response, int]:
     """
-    Get temperature readings filtered by date range.
+    Get temperature readings filtered by date range, averaged by minute.
     
     Query parameters:
-        startDateTime: Start datetime in Toronto timezone (ISO format, optional)
-                      Example: "2025-11-04T10:00:00"
-        endDateTime: End datetime in Toronto timezone (ISO format, optional)
-                    Example: "2025-11-04T11:00:00"
+        startDateTime: Start datetime in UTC (ISO format, required)
+                      Example: "2025-11-04T10:00:00Z"
+        endDateTime: End datetime in UTC (ISO format, required)
+                    Example: "2025-11-04T11:00:00Z"
     
     Returns:
-        JSON response with filtered readings:
+        JSON response with filtered readings (averaged per minute):
         {
             "message": "Readings retrieved",
             "count": <number>,
-            "readings": [<Reading objects>]
+            "readings": [<Reading objects with averaged temperatures, one per minute>]
         }
         
     Raises:
-        ValidationError: If datetime strings are invalid or startDateTime > endDateTime
+        ValidationError: If datetime strings are missing, invalid, or startDateTime > endDateTime
     """
     start_datetime_str: Optional[str] = request.args.get('startDateTime')
     end_datetime_str: Optional[str] = request.args.get('endDateTime')
@@ -47,7 +47,8 @@ def get_readings() -> Tuple[Response, int]:
     )
     
     # Get readings from service (handles timezone conversion and filtering)
-    readings = reading_service.get_readings(start_datetime_str, end_datetime_str)
+    # Both startDateTime and endDateTime are required
+    readings = reading_service.get_readings(start_datetime_str or '', end_datetime_str or '')
     
     # Convert to dictionary format and convert UTC timestamps to Toronto time
     readings_data: list[Dict[str, Any]] = []
