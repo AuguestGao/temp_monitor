@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { readingsService } from '../services/readingsService';
+import { arduinoService } from '../services/arduinoService';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { Reading } from '../types';
 import { format, parseISO } from 'date-fns';
@@ -24,6 +25,8 @@ export const Dashboard = () => {
   const [error, setError] = useState('');
   const [startDateTime, setStartDateTime] = useState(getDefaultStartDateTime());
   const [endDateTime, setEndDateTime] = useState(getDefaultEndDateTime());
+  const [arduinoStatus, setArduinoStatus] = useState<string>('');
+  const [isArduinoLoading, setIsArduinoLoading] = useState(false);
 
   const fetchReadings = async () => {
     if (!startDateTime || !endDateTime) {
@@ -74,6 +77,38 @@ export const Dashboard = () => {
     setTimeout(() => {
       fetchReadings();
     }, 0);
+  };
+
+  const handleArduinoCommand = async (command: 'start' | 'stop' | 'toggle') => {
+    setIsArduinoLoading(true);
+    setArduinoStatus('');
+    try {
+      let response;
+      switch (command) {
+        case 'start':
+          response = await arduinoService.start();
+          break;
+        case 'stop':
+          response = await arduinoService.stop();
+          break;
+        case 'toggle':
+          response = await arduinoService.toggle();
+          break;
+      }
+      setArduinoStatus(response.message);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { data?: { error?: string; message?: string } } };
+        const errorMessage = axiosError.response?.data?.error || axiosError.response?.data?.message || 'Failed to send command';
+        setArduinoStatus(`Error: ${errorMessage}`);
+      } else if (err instanceof Error) {
+        setArduinoStatus(`Error: ${err.message}`);
+      } else {
+        setArduinoStatus('An unexpected error occurred');
+      }
+    } finally {
+      setIsArduinoLoading(false);
+    }
   };
 
   // Format data for chart
@@ -148,6 +183,49 @@ export const Dashboard = () => {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Arduino Control Section */}
+        <div className="bg-white shadow rounded-lg p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Arduino Control</h2>
+          <div className="flex flex-wrap gap-4 items-center">
+            <button
+              onClick={() => handleArduinoCommand('start')}
+              disabled={isArduinoLoading}
+              className="px-6 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Start
+            </button>
+            <button
+              onClick={() => handleArduinoCommand('stop')}
+              disabled={isArduinoLoading}
+              className="px-6 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Stop
+            </button>
+            <button
+              onClick={() => handleArduinoCommand('toggle')}
+              disabled={isArduinoLoading}
+              className="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Toggle
+            </button>
+            {isArduinoLoading && (
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <span>Sending command...</span>
+              </div>
+            )}
+          </div>
+          {arduinoStatus && (
+            <div className={`mt-4 p-3 rounded-md text-sm ${
+              arduinoStatus.startsWith('Error') 
+                ? 'bg-red-50 text-red-800 border border-red-200' 
+                : 'bg-green-50 text-green-800 border border-green-200'
+            }`}>
+              {arduinoStatus}
+            </div>
+          )}
         </div>
 
         {/* Error Message */}

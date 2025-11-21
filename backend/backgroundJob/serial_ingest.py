@@ -13,6 +13,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from config import get_config, get_default_serial_ports
 from utils.logging_config import setup_logging
+from services.serial_manager import get_serial_manager
 
 # Set up logging
 setup_logging()
@@ -119,7 +120,38 @@ def main():
         
         ensure_csv_header(CSV_FILE)
         
+        # Initialize serial manager for command processing
+        serial_manager = get_serial_manager()
+        last_command_check = time.time()
+        COMMAND_CHECK_INTERVAL = 0.5  # Check for commands every 0.5 seconds
+        
         while True:
+            # Check for pending commands and send them
+            current_time = time.time()
+            if current_time - last_command_check >= COMMAND_CHECK_INTERVAL:
+                pending_commands = serial_manager.get_pending_commands()
+                for cmd in pending_commands:
+                    try:
+                        command = cmd.get('command', '')
+                        command_timestamp = cmd.get('timestamp', 0)
+                        
+                        # Send command to Arduino
+                        command_with_newline = f"{command}\n"
+                        ser.write(command_with_newline.encode('utf-8'))
+                        ser.flush()
+                        
+                        logger.info(f"Sent queued command '{command}' to Arduino")
+                        print(f"📤 Sent command: {command}")
+                        
+                        # Mark command as processed
+                        serial_manager.mark_command_processed(command_timestamp)
+                    except Exception as e:
+                        logger.error(f"Error sending queued command: {e}", exc_info=True)
+                        print(f"⚠️  Error sending command: {e}")
+                
+                last_command_check = current_time
+            
+            # Read temperature data from Arduino
             if ser.in_waiting > 0:
                 try:
                     # Read line from serial

@@ -6,6 +6,7 @@ A system to capture temperature readings via an Arduino temperature sensor, tran
 #### Goals
 - Collect temperature in Celsius from Arduino-connected sensors.
 - Send readings to backend over USB serial (UART).
+- Control Arduino remotely via web interface (start/stop/toggle temperature reading).
 - Persist readings reliably in CSV with timestamps.
 - Provide APIs to ingest and retrieve readings.
 - Visualize and filter readings by date range in a web UI.
@@ -23,7 +24,9 @@ A system to capture temperature readings via an Arduino temperature sensor, tran
 - **Security**: Rate limiting, password hashing (bcrypt), token blacklisting
 
 ```
-Sensor → Arduino → (UART over USB) → Serial Ingest → CSV Storage → Flask API (JWT Auth) → React App
+Sensor → Arduino ↔ (UART over USB) ↔ Serial Ingest ↔ CSV Storage ↔ Flask API (JWT Auth) ↔ React App
+                                                                    ↕
+                                                              Arduino Control
 ```
 
 ---
@@ -42,11 +45,18 @@ Rotation policy: one CSV file per day per environment, e.g., `storage/2025-10-30
 
 ---
 
-### Communication from Arduino
-Mode: **USB Serial (UART)**
+### Communication with Arduino
+Mode: **USB Serial (UART) - Bidirectional**
+
+**Arduino → Backend (Temperature Readings):**
 - Arduino prints newline-delimited rows. Recommended format is CSV to match storage. Fields: `recordedAt,tempC`.
 - Example CSV line: `2025-10-30T10:15:00Z,23.6`
 - A Python serial-ingest process (`serial_ingest.py`) reads UART and writes to the daily CSV, using `recordedAt` as the identifier.
+
+**Backend → Arduino (Control Commands):**
+- Backend sends commands via serial: `START`, `STOP`, `TOGGLE`
+- Arduino firmware listens for these commands and controls temperature reading state
+- Commands can be sent via web UI or API endpoints
 
 Serial framing recommendation (robust): one record per line; optional checksum field if needed.
 
@@ -141,19 +151,44 @@ Base URL: `/api`
 - **GET** `/api/readings`
 - Headers: `Authorization: Bearer <access_token>` (if auth required)
 - Query params:
-  - `start_date`: ISO 8601 (optional)
-  - `end_date`: ISO 8601 (optional)
-  - `limit`: integer (optional, default 1000, max 10000)
-  - `offset`: integer (optional, default 0)
-- Example: `/api/readings?start_date=2025-10-30T00:00:00Z&end_date=2025-10-31T00:00:00Z&limit=100`
+  - `startDateTime`: ISO 8601 (required)
+  - `endDateTime`: ISO 8601 (required)
+- Example: `/api/readings?startDateTime=2025-10-30T00:00:00Z&endDateTime=2025-10-31T00:00:00Z`
 - Response (200):
 ```json
 {
   "message": "Readings retrieved",
-  "limit": 100,
-  "offset": 0
+  "count": 100,
+  "readings": [...]
 }
 ```
+
+#### Arduino Control Endpoints
+
+All endpoints require authentication via `Authorization: Bearer <access_token>` header.
+
+1) **Start Arduino**
+- **POST** `/api/arduino/start`
+- Headers: `Authorization: Bearer <access_token>`
+- Responses:
+  - 200 OK: `{ "message": "Command 'START' sent successfully", "status": "success" }`
+  - 500 Internal Server Error: `{ "message": "Failed to connect to Arduino: ...", "status": "error" }`
+
+2) **Stop Arduino**
+- **POST** `/api/arduino/stop`
+- Headers: `Authorization: Bearer <access_token>`
+- Responses:
+  - 200 OK: `{ "message": "Command 'STOP' sent successfully", "status": "success" }`
+  - 500 Internal Server Error: `{ "message": "Failed to connect to Arduino: ...", "status": "error" }`
+
+3) **Toggle Arduino**
+- **POST** `/api/arduino/toggle`
+- Headers: `Authorization: Bearer <access_token>`
+- Responses:
+  - 200 OK: `{ "message": "Command 'TOGGLE' sent successfully", "status": "success" }`
+  - 500 Internal Server Error: `{ "message": "Failed to connect to Arduino: ...", "status": "error" }`
+
+**Note:** The Arduino service auto-detects the Arduino serial port by vendor ID or common port names. If multiple Arduinos are connected, it will use the first one found.
 
 **Validation rules:**
 - `recordedAt`: valid ISO 8601; if omitted, server sets now (UTC)
@@ -172,22 +207,29 @@ Base URL: `/api`
 ### Frontend (React + TypeScript)
 Features:
 - Date range selector (start/end)
-- Table and chart (line chart) of temperature over time
-- Auto-refresh toggle (e.g., 10s interval)
+- Line chart of temperature over time
+- **Arduino control buttons** (Start, Stop, Toggle) with real-time status feedback
+- Loading states and error handling
 
 Core UI elements:
-- Controls: `DateRangePicker`, `RefreshButton`
-- Views: `TemperatureChart`, `ReadingsTable`
+- Controls: `DateRangePicker`, `ArduinoControlButtons`
+- Views: `TemperatureChart`
 
 API integration:
 - Fetch from `/api/readings` with query params derived from UI controls
-- Display loading/errors; debounce filter changes
+- Send commands to `/api/arduino/start`, `/api/arduino/stop`, `/api/arduino/toggle`
+- Display loading/errors; real-time status updates
 
 Type definitions:
 ```ts
 export type TemperatureReading = {
   recordedAt: string; // DateTime UTC (used as identifier)
   tempC: number;
+};
+
+export type ArduinoResponse = {
+  message: string;
+  status: 'success' | 'error';
 };
 ```
 
@@ -213,10 +255,13 @@ temp_monitor/
       auth.py                  # Authentication routes
       health.py                # Health check routes
       readings.py              # Temperature reading routes
+      arduino.py               # Arduino control routes
     services/                  # Business logic services
       user_service.py          # User management
       jwt_service.py           # JWT token operations
       token_storage.py         # Token storage (in-memory)
+      arduino_service.py       # Arduino serial communication service
+      reading_service.py       # Temperature reading service
     storage/                   # File storage
       file_storage.py          # File storage abstraction
       users.json               # User data (JSON)
@@ -290,7 +335,6 @@ temp_monitor/
 - Which sensor model exactly? (affects calibration and range)
 - Will Arduino keep accurate time or should server timestamp on ingest? (Currently: server timestamps on ingest)
 - Expected data volume and retention policy?
-- Frontend integration: React + TypeScript (planned)
 
 ---
 
@@ -367,6 +411,27 @@ uv run python backgroundJob/serial_ingest.py /dev/tty.usbserial* # macOS
 # - Generate UTC timestamps for each reading
 ```
 
+#### Frontend Setup
+```bash
+# Install dependencies
+cd frontend
+npm install
+
+# Run development server
+npm run dev
+# Frontend runs on http://localhost:5173 by default (Vite)
+
+# Build for production
+npm run build
+```
+
+**Frontend Features:**
+- Login/Signup pages with JWT authentication
+- Dashboard with temperature readings chart
+- Date range filtering
+- Arduino control buttons (Start/Stop/Toggle) with status feedback
+- Real-time error handling and loading states
+
 #### Example API Usage
 ```bash
 # Sign up
@@ -386,7 +451,19 @@ curl -X POST http://localhost:5000/api/reading \
   -d '{"valueC": 23.6}'
 
 # Get readings
-curl http://localhost:5000/api/readings?limit=10 \
+curl http://localhost:5000/api/readings?startDateTime=2025-10-30T00:00:00Z&endDateTime=2025-10-31T00:00:00Z \
+  -H "Authorization: Bearer <access_token>"
+
+# Control Arduino - Start
+curl -X POST http://localhost:5000/api/arduino/start \
+  -H "Authorization: Bearer <access_token>"
+
+# Control Arduino - Stop
+curl -X POST http://localhost:5000/api/arduino/stop \
+  -H "Authorization: Bearer <access_token>"
+
+# Control Arduino - Toggle
+curl -X POST http://localhost:5000/api/arduino/toggle \
   -H "Authorization: Bearer <access_token>"
 ```
 

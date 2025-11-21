@@ -8,6 +8,7 @@ from flask_cors import CORS
 from routes.auth import auth_bp
 from routes.health import health_bp
 from routes.readings import readings_bp
+from routes.arduino import arduino_bp
 from errors import register_error_handlers
 from config import get_config
 from utils.logging_config import setup_logging
@@ -35,6 +36,7 @@ request_logging_middleware(app)
 app.register_blueprint(health_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(readings_bp)
+app.register_blueprint(arduino_bp)
 
 # Register error handlers
 register_error_handlers(app)
