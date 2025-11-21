@@ -467,4 +467,31 @@ curl -X POST http://localhost:5000/api/arduino/toggle \
   -H "Authorization: Bearer <access_token>"
 ```
 
+## Wiring
 
+### Arduino Uno + TMP36 Temperature Sensor
+
+![Arduino Wiring Diagram](Wiring.jpg)
+
+**Components:**
+- Arduino Uno microcontroller
+- TMP36 temperature sensor
+- Breadboard
+- Jumper wires
+
+**Connections:**
+
+**Temperature Sensor (TMP36) to Arduino:**
+- **Left pin (VCC)**: Connect to 5V power rail on breadboard (brown wire)
+- **Middle pin (Vout)**: Connect to Arduino Analog pin **A1** (green wire)
+- **Right pin (GND)**: Connect to ground rail on breadboard (purple wire)
+
+**Power Rails:**
+- **5V**: Arduino 5V pin → Red power rail on breadboard (red wire)
+- **GND**: Arduino GND pin → Blue ground rail on breadboard (black wire)
+
+**Notes:**
+- The TMP36 sensor outputs a voltage proportional to temperature (10mV per °C)
+- The sensor is powered from Arduino's 5V supply
+- Analog reading on A1 is converted to temperature in the firmware
+- No external button is required - control is via serial commands from the web interface
